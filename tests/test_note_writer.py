@@ -1,7 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
-from tg_obsidian_bot.note_writer import (
+from engram.note_writer import (
     CapturedMessage,
     append_to_note,
     build_content,

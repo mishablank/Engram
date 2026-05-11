@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from tg_obsidian_bot.vault import scan_vault
+from engram.vault import scan_vault
 
 
 def test_scan_extracts_titles_and_tags(tmp_path: Path) -> None:

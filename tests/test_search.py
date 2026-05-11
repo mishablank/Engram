@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tg_obsidian_bot.vault import load_note_body, search_vault
+from engram.vault import load_note_body, search_vault
 
 
 def _write(p: Path, text: str) -> None:

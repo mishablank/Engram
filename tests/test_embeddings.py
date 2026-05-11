@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from tg_obsidian_bot.embeddings import SemanticIndex, _surface_text
+from engram.embeddings import SemanticIndex, _surface_text
 
 
 class StubEmbedder:
@@ -132,7 +132,7 @@ def test_ignores_attachments_and_dotfolders(tmp_path: Path) -> None:
 
 
 def test_hybrid_search_falls_back_to_bm25_when_no_semantic(tmp_path: Path) -> None:
-    from tg_obsidian_bot.embeddings import hybrid_search
+    from engram.embeddings import hybrid_search
 
     _write(tmp_path / "AI" / "alpha.md", "alpha gamma\n")
     _write(tmp_path / "Other" / "beta.md", "beta delta\n")
@@ -141,7 +141,7 @@ def test_hybrid_search_falls_back_to_bm25_when_no_semantic(tmp_path: Path) -> No
 
 
 def test_hybrid_search_merges_bm25_and_semantic(tmp_path: Path) -> None:
-    from tg_obsidian_bot.embeddings import hybrid_search
+    from engram.embeddings import hybrid_search
 
     # BM25 will match this on exact term.
     _write(tmp_path / "AI" / "bm25_match.md", "rocket launch propulsion\n")

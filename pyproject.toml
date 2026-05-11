@@ -1,12 +1,12 @@
 [project]
-name = "tg-obsidian-bot"
+name = "engram"
 version = "0.1.0"
-description = "Telegram bot that captures messages, voice, photos, PDFs, and links into an Obsidian vault, auto-tagged and back-linked with Claude."
+description = "Forward anything to Telegram, get a tagged, linked, deduplicated Obsidian note back. A single-tenant LLM capture bot for your second brain."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "Mikhail Blank" }]
-keywords = ["telegram", "obsidian", "claude", "anthropic", "note-taking", "pkm", "second-brain"]
+keywords = ["telegram", "obsidian", "claude", "anthropic", "note-taking", "pkm", "second-brain", "rag", "engram"]
 dependencies = [
     "anthropic>=0.100.0",
     "numpy>=2.0",
@@ -19,12 +19,12 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/mishablank/tg-2-obsidian"
-Repository = "https://github.com/mishablank/tg-2-obsidian"
-Issues = "https://github.com/mishablank/tg-2-obsidian/issues"
+Homepage = "https://github.com/mishablank/Engram"
+Repository = "https://github.com/mishablank/Engram"
+Issues = "https://github.com/mishablank/Engram/issues"
 
 [project.scripts]
-tg-obsidian-bot = "tg_obsidian_bot.bot:main"
+engram = "engram.bot:main"
 
 [dependency-groups]
 dev = [
@@ -41,4 +41,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/tg_obsidian_bot"]
+packages = ["src/engram"]

@@ -5,10 +5,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-from tg_obsidian_bot import bot as bot_module
-from tg_obsidian_bot.config import DEFAULT_CATEGORIES, Config
-from tg_obsidian_bot.linker import Enrichment
-from tg_obsidian_bot.vault import VaultIndex
+from engram import bot as bot_module
+from engram.config import DEFAULT_CATEGORIES, Config
+from engram.linker import Enrichment
+from engram.vault import VaultIndex
 
 
 def _make_state(tmp_path: Path, monkeypatch) -> bot_module.BotState:
@@ -235,7 +235,7 @@ async def test_low_confidence_stamps_review_pending(tmp_path, monkeypatch):
     state = _make_state(tmp_path, monkeypatch)
     _patch_enrich(monkeypatch, folder="AI", title="X", summary="thin", )
     # Override confidence on the enrichment patcher
-    from tg_obsidian_bot.linker import Enrichment
+    from engram.linker import Enrichment
     monkeypatch.setattr(
         bot_module,
         "enrich_note",
@@ -456,7 +456,7 @@ async def test_ask_stores_thread_keyed_by_bot_message_id(tmp_path, monkeypatch):
     update = _fake_update(_fake_message(text="/ask whatever"))
     update.effective_chat.send_message = AsyncMock(return_value=sent)
 
-    from tg_obsidian_bot.linker import AskResult
+    from engram.linker import AskResult
     monkeypatch.setattr(
         bot_module,
         "answer_from_vault",
@@ -483,7 +483,7 @@ async def test_reply_to_ask_answer_continues_thread(tmp_path, monkeypatch):
     captured: dict = {}
 
     def fake_answer(question, base_dir, client, *, top_k=8, prior_turns=None, semantic_index=None):
-        from tg_obsidian_bot.linker import AskResult
+        from engram.linker import AskResult
         captured["question"] = question
         captured["prior_turns"] = prior_turns
         return AskResult(answer="October 8 specifically", sources=[])
@@ -536,7 +536,7 @@ async def test_ask_thread_caps_at_max_turns(tmp_path, monkeypatch):
         created_at=time.time(),
     )
 
-    from tg_obsidian_bot.linker import AskResult
+    from engram.linker import AskResult
     monkeypatch.setattr(
         bot_module,
         "answer_from_vault",

@@ -4,9 +4,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from tg_obsidian_bot import dedupe
-from tg_obsidian_bot.dedupe import find_semantic_duplicate
-from tg_obsidian_bot.embeddings import NearestHit
+from engram import dedupe
+from engram.dedupe import find_semantic_duplicate
+from engram.embeddings import NearestHit
 
 
 class FakeSemanticIndex:

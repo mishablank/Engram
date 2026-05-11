@@ -1,8 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from tg_obsidian_bot.linker import enrich_note
-from tg_obsidian_bot.vault import VaultIndex
+from engram.linker import enrich_note
+from engram.vault import VaultIndex
 
 
 def _fake_response(text: str):
@@ -128,7 +128,7 @@ def test_enrich_uses_prompt_cache_on_index():
 
 
 def test_enrich_falls_back_on_api_error(monkeypatch):
-    monkeypatch.setattr("tg_obsidian_bot.linker.RETRY_DELAY_SECONDS", 0)
+    monkeypatch.setattr("engram.linker.RETRY_DELAY_SECONDS", 0)
     client = MagicMock()
     client.messages.create.side_effect = RuntimeError("boom")
     out = enrich_note("hello world", VaultIndex(titles=["A"]), client)
@@ -140,7 +140,7 @@ def test_enrich_falls_back_on_api_error(monkeypatch):
 
 
 def test_enrich_fallback_for_url_only_input(monkeypatch):
-    monkeypatch.setattr("tg_obsidian_bot.linker.RETRY_DELAY_SECONDS", 0)
+    monkeypatch.setattr("engram.linker.RETRY_DELAY_SECONDS", 0)
     client = MagicMock()
     client.messages.create.side_effect = RuntimeError("boom")
     out = enrich_note("https://x.com/garrytan/status/123", VaultIndex(titles=[]), client)
@@ -149,7 +149,7 @@ def test_enrich_fallback_for_url_only_input(monkeypatch):
 
 
 def test_enrich_retries_once_on_transient_error(monkeypatch):
-    monkeypatch.setattr("tg_obsidian_bot.linker.RETRY_DELAY_SECONDS", 0)
+    monkeypatch.setattr("engram.linker.RETRY_DELAY_SECONDS", 0)
     client = MagicMock()
     client.messages.create.side_effect = [
         RuntimeError("transient"),

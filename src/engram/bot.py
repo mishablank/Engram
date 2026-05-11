@@ -37,10 +37,10 @@ from .vision import ocr_image
 from .whisper import transcribe
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
-DEFAULT_LOG_PATH = Path.home() / ".tg-obsidian-bot.log"
+DEFAULT_LOG_PATH = Path.home() / ".engram.log"
 
 logging.basicConfig(format=LOG_FORMAT, level=logging.INFO)
-log = logging.getLogger("tg_obsidian_bot")
+log = logging.getLogger("engram")
 
 
 def _attach_file_logging(path: Path) -> None:

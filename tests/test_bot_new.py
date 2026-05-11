@@ -6,10 +6,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-from tg_obsidian_bot import bot as bot_module
-from tg_obsidian_bot.config import DEFAULT_CATEGORIES, Config
-from tg_obsidian_bot.linker import Enrichment
-from tg_obsidian_bot.vault import VaultIndex
+from engram import bot as bot_module
+from engram.config import DEFAULT_CATEGORIES, Config
+from engram.linker import Enrichment
+from engram.vault import VaultIndex
 
 
 def _make_state(tmp_path: Path, monkeypatch) -> bot_module.BotState:
@@ -486,8 +486,8 @@ async def test_search_empty_query_shows_usage(tmp_path: Path, monkeypatch):
 async def test_ask_routes_to_answer_from_vault(tmp_path: Path, monkeypatch):
     state = _make_state(tmp_path, monkeypatch)
 
-    from tg_obsidian_bot.linker import AskResult
-    from tg_obsidian_bot.vault import SearchHit
+    from engram.linker import AskResult
+    from engram.vault import SearchHit
 
     captured = {}
 

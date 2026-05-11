@@ -1,11 +1,16 @@
-# tg-obsidian-bot
+# Engram
 
 > **Forward anything to Telegram. Get a tagged, linked, deduplicated Obsidian note back.**
 
-A single-tenant Telegram bot that turns your chat into a frictionless capture layer for an [Obsidian](https://obsidian.md/) vault. Drop in a tweet, voice memo, PDF, YouTube link, or a photo of a whiteboard — Claude classifies it, summarises it, tags it, finds related notes already in your vault, and writes a Markdown file with proper frontmatter and `[[backlinks]]`. Built as a personal second-brain pipeline; published in case it's useful to anyone else.
-
+[![CI](https://github.com/mishablank/Engram/actions/workflows/ci.yml/badge.svg)](https://github.com/mishablank/Engram/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+An *engram* is the physical trace a memory leaves in the brain — the durable scar left behind after an experience. **Engram** is a single-tenant Telegram bot that does the same thing for your chat stream: drop in a tweet, voice memo, PDF, YouTube link, or photo of a whiteboard, and Claude classifies it, summarises it, tags it, finds related notes already in your [Obsidian](https://obsidian.md/) vault, and writes a Markdown file with proper frontmatter and `[[backlinks]]`. The forgettable river of messages becomes durable, indexed memory.
+
+Built as a personal second-brain pipeline; published in case it's useful to anyone else.
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template?template=https://github.com/mishablank/Engram)
 
 ---
 
@@ -48,15 +53,26 @@ Dedupe check (URL → title → semantic) → append to existing OR create new
 ## Setup
 
 ```bash
-git clone https://github.com/mishablank/tg-2-obsidian.git
-cd tg-2-obsidian
+git clone https://github.com/mishablank/Engram.git
+cd Engram
 uv sync
 cp .env.example .env
 # edit .env — see Configuration below
-uv run python -m tg_obsidian_bot.bot
+uv run python -m engram.bot
 ```
 
-If you `uv pip install -e .` you'll also get a `tg-obsidian-bot` console entry point.
+If you `uv pip install -e .` you'll also get an `engram` console entry point.
+
+### One-click deploy (Railway)
+
+Click the **Deploy on Railway** button above. Railway will build the project, prompt you for the env vars below, and run `uv run python -m engram.bot` as a long-lived process.
+
+The catch: your Obsidian vault is *local*, but Railway runs in the cloud. Two ways to make this work:
+
+1. **Recommended** — attach a Railway volume mounted at e.g. `/data`, set `BASE_DIR=/data`, and use [Obsidian Sync](https://obsidian.md/sync), Syncthing, or rclone to mirror that volume into your local Obsidian vault. The bot writes to the cloud copy; your desktop reads it via sync.
+2. **Quick test** — point `BASE_DIR` at the container filesystem and treat it as ephemeral. Notes survive restarts but vanish if Railway redeploys without a volume. Fine for kicking the tyres, not for real use.
+
+If you don't want any of that, just run it on your laptop or a home server. See "Running it as a daemon" below.
 
 ## Configuration
 
@@ -70,7 +86,7 @@ All config is via environment variables (loaded from `.env` if present). See [.e
 | `BASE_DIR` | yes | Absolute path to your Obsidian vault root |
 | `OPENAI_API_KEY` | no | Enables Whisper voice transcription, semantic dedupe, `/relink`, and semantic ranking inside `/search` and `/ask` |
 | `CATEGORIES` | no | Comma-separated folder names. Default: `AI,Crypto,Startups/YC,Personal,Health,Reading,Other` |
-| `LOG_FILE` | no | Defaults to `~/.tg-obsidian-bot.log` (rotated, 5 MB × 3 backups) |
+| `LOG_FILE` | no | Defaults to `~/.engram.log` (rotated, 5 MB × 3 backups) |
 
 ## Commands
 
@@ -117,11 +133,11 @@ hand-tuned domain knowledge tends to be a local optimum at best.
 
 The bot is a long-lived process. Some lightweight options:
 
-- **macOS (launchd):** drop a `~/Library/LaunchAgents/com.you.tg-obsidian-bot.plist` that runs `uv run python -m tg_obsidian_bot.bot` with `KeepAlive=true`.
-- **Linux (systemd user unit):** a one-screen `~/.config/systemd/user/tg-obsidian-bot.service` with `ExecStart=…` and `Restart=on-failure`, then `systemctl --user enable --now tg-obsidian-bot`.
-- **Quick and dirty:** `tmux new -d -s tg "uv run python -m tg_obsidian_bot.bot"`.
+- **macOS (launchd):** drop a `~/Library/LaunchAgents/com.you.engram.plist` that runs `uv run python -m engram.bot` with `KeepAlive=true`.
+- **Linux (systemd user unit):** a one-screen `~/.config/systemd/user/engram.service` with `ExecStart=…` and `Restart=on-failure`, then `systemctl --user enable --now engram`.
+- **Quick and dirty:** `tmux new -d -s engram "uv run python -m engram.bot"`.
 
-Logs go to `LOG_FILE` (default `~/.tg-obsidian-bot.log`).
+Logs go to `LOG_FILE` (default `~/.engram.log`).
 
 ## Development
 
@@ -130,7 +146,11 @@ uv sync
 uv run pytest -v
 ```
 
-15 test modules cover the bot handlers, vault indexing, embeddings, dedupe, link enrichment, vision/whisper/youtube/pdf adapters, and the inbox/review flow. `pytest-asyncio` is in `auto` mode.
+15 test modules cover the bot handlers, vault indexing, embeddings, dedupe, link enrichment, vision/whisper/youtube/pdf adapters, and the inbox/review flow. `pytest-asyncio` is in `auto` mode. CI runs on push and PR against Python 3.11 / 3.12 / 3.13.
+
+## Roadmap
+
+- **Local-model support** — swap Claude / OpenAI for Ollama or llama.cpp so the bot can run end-to-end without paid API keys. Embeddings first (cheapest win), then enrichment. Tracked in [#1](https://github.com/mishablank/Engram/issues/1) — help welcome.
 
 ## Security model
 

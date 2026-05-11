@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from tg_obsidian_bot.pdf import extract_pdf_text
+from engram.pdf import extract_pdf_text
 
 
 def _make_pdf(tmp_path: Path, text: str) -> Path:

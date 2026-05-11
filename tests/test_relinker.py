@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tg_obsidian_bot.embeddings import SemanticIndex
-from tg_obsidian_bot.relinker import (
+from engram.embeddings import SemanticIndex
+from engram.relinker import (
     format_related_line,
     relink_note,
 )

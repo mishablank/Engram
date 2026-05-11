@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from tg_obsidian_bot.linker import answer_from_vault
+from engram.linker import answer_from_vault
 
 
 def _write(p: Path, text: str) -> None:

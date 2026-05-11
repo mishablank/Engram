@@ -2,7 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from tg_obsidian_bot.vision import ocr_image
+from engram.vision import ocr_image
 
 
 def _fake_response(text: str):

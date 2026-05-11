@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tg_obsidian_bot.inbox import (
+from engram.inbox import (
     clear_pending,
     find_pending,
     is_pending,
