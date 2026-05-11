@@ -182,7 +182,7 @@ wheels = [
 ]
 
 [[package]]
-name = "engram"
+name = "engram-bot"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
