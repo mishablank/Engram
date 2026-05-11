@@ -3,6 +3,7 @@
 > **Forward anything to Telegram. Get a tagged, linked, deduplicated Obsidian note back.**
 
 [![CI](https://github.com/mishablank/Engram/actions/workflows/ci.yml/badge.svg)](https://github.com/mishablank/Engram/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/engram-bot.svg)](https://pypi.org/project/engram-bot/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -52,6 +53,18 @@ Dedupe check (URL → title → semantic) → append to existing OR create new
 
 ## Setup
 
+### Install from PyPI
+
+```bash
+pip install engram-bot   # or: uv pip install engram-bot
+# create .env in your working dir (see Configuration below), then:
+engram
+```
+
+The PyPI distribution name is `engram-bot` (because `engram` is squatted on PyPI); the Python import name and the console script are both `engram`.
+
+### From source
+
 ```bash
 git clone https://github.com/mishablank/Engram.git
 cd Engram
@@ -60,8 +73,6 @@ cp .env.example .env
 # edit .env — see Configuration below
 uv run python -m engram.bot
 ```
-
-If you `uv pip install -e .` you'll also get an `engram` console entry point.
 
 ### One-click deploy (Railway)
 
