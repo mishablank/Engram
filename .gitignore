@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Secrets & local config
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+.tg-obsidian-bot.log
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Claude Code per-user state
+.claude/

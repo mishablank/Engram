@@ -1,0 +1,44 @@
+[project]
+name = "tg-obsidian-bot"
+version = "0.1.0"
+description = "Telegram bot that captures messages, voice, photos, PDFs, and links into an Obsidian vault, auto-tagged and back-linked with Claude."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Mikhail Blank" }]
+keywords = ["telegram", "obsidian", "claude", "anthropic", "note-taking", "pkm", "second-brain"]
+dependencies = [
+    "anthropic>=0.100.0",
+    "numpy>=2.0",
+    "openai>=2.36.0",
+    "pypdf>=4.0",
+    "python-docx>=1.1.0",
+    "python-dotenv>=1.2.2",
+    "python-telegram-bot>=22.7",
+    "youtube-transcript-api>=1.2.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/mishablank/tg-2-obsidian"
+Repository = "https://github.com/mishablank/tg-2-obsidian"
+Issues = "https://github.com/mishablank/tg-2-obsidian/issues"
+
+[project.scripts]
+tg-obsidian-bot = "tg_obsidian_bot.bot:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.3.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tg_obsidian_bot"]
