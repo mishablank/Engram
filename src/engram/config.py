@@ -35,7 +35,7 @@ class Config:
 
 
 def load_config() -> Config:
-    load_dotenv()
+    load_dotenv(override=True)
     token = os.environ["TELEGRAM_BOT_TOKEN"]
     api_key = os.environ["ANTHROPIC_API_KEY"]
     openai_key = os.environ.get("OPENAI_API_KEY") or None
