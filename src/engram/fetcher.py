@@ -5,6 +5,7 @@ import re
 
 import httpx
 
+from .reddit import fetch_reddit, is_reddit_url
 from .youtube import extract_video_id, fetch_youtube
 
 log = logging.getLogger(__name__)
@@ -59,6 +60,11 @@ def fetch_url(url: str) -> str | None:
             log.info("Fetched %s as YouTube transcript (%d chars)", url, len(transcript))
             return transcript
         log.info("YouTube transcript unavailable for %s; falling back to Jina", url)
+    if is_reddit_url(url):
+        reddit_text = fetch_reddit(url)
+        if reddit_text:
+            return reddit_text
+        log.info("Reddit JSON unavailable for %s; falling back to Jina", url)
     return _fetch_via_jina(url)
 
 
