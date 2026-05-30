@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import secrets
+import shutil
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -23,6 +24,7 @@ from telegram.ext import (
     filters,
 )
 
+from . import pending_store
 from .config import DEFAULT_CATEGORY, Config, load_config
 from .dedupe import find_semantic_duplicate
 from .embeddings import OpenAIEmbedder, SemanticIndex, hybrid_search
@@ -38,6 +40,7 @@ from .whisper import transcribe
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 DEFAULT_LOG_PATH = Path.home() / ".engram.log"
+DEFAULT_STATE_DIR = Path.home() / ".engram"
 
 logging.basicConfig(format=LOG_FORMAT, level=logging.INFO)
 log = logging.getLogger("engram")
@@ -89,7 +92,7 @@ class _ReviewItem:
 
 
 class BotState:
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, state_dir: Path | None = None):
         self.config = config
         self.anthropic = Anthropic(api_key=config.anthropic_api_key)
         self._vault_index: VaultIndex = VaultIndex()
@@ -99,6 +102,7 @@ class BotState:
         self._last_capture: dict[int, Path] = {}  # chat_id -> last note path
         self._ask_threads: dict[tuple[int, int], _AskThread] = {}  # (chat_id, bot_msg_id) -> thread
         self._review_items: dict[str, _ReviewItem] = {}
+        self._state_dir = state_dir
         embedder = (
             OpenAIEmbedder(api_key=config.openai_api_key)
             if config.openai_api_key
@@ -106,11 +110,69 @@ class BotState:
         )
         self._semantic_index = SemanticIndex(config.base_dir, embedder)
 
+    @property
+    def _pending_path(self) -> Path | None:
+        return None if self._state_dir is None else self._state_dir / "pending.json"
+
+    @property
+    def _pending_files_dir(self) -> Path | None:
+        return None if self._state_dir is None else self._state_dir / "pending_files"
+
+    def stash_pending_files(self, token: str, files: list[Path]) -> list[Path]:
+        """Copy temp files into a stable per-token dir so they survive restarts.
+
+        No-op when persistence is disabled (no state_dir).
+        """
+        if not files or self._pending_files_dir is None:
+            return list(files)
+        dest_dir = self._pending_files_dir / token
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        out: list[Path] = []
+        for src in files:
+            if not src.exists():
+                continue
+            dest = dest_dir / src.name
+            try:
+                src.replace(dest)
+            except OSError:
+                shutil.copy2(src, dest)
+                src.unlink(missing_ok=True)
+            out.append(dest)
+        return out
+
+    def _drop_pending_files(self, token: str) -> None:
+        if self._pending_files_dir is None:
+            return
+        shutil.rmtree(self._pending_files_dir / token, ignore_errors=True)
+
+    def persist_pending(self) -> None:
+        path = self._pending_path
+        if path is None:
+            return
+        try:
+            pending_store.write(path, self._pending)
+        except OSError:
+            log.exception("Failed to persist pending captures to %s", path)
+
+    def load_pending(self, bot) -> int:
+        path = self._pending_path
+        if path is None:
+            return 0
+        restored = pending_store.load(path, bot, _PendingCapture)
+        self._pending.update(restored)
+        if restored:
+            log.info("Restored %d pending capture(s) from %s", len(restored), path)
+        return len(restored)
+
     def _cleanup_pending(self) -> None:
         now = time.time()
         stale = [t for t, p in self._pending.items() if now - p.created_at > PENDING_TTL_SECONDS]
+        if not stale:
+            return
         for t in stale:
             self._pending.pop(t, None)
+            self._drop_pending_files(t)
+        self.persist_pending()
 
     def _cleanup_ask_threads(self) -> None:
         now = time.time()
@@ -483,13 +545,15 @@ async def _ask_folder(
     token = secrets.token_urlsafe(8)
     if forward_info is None:
         forward_info = _extract_forward_info(messages)
+    stashed = state.stash_pending_files(token, list(pending_files or []))
     state._pending[token] = _PendingCapture(
         messages=messages,
         extra_text=extra_text,
         created_at=time.time(),
-        pending_files=list(pending_files or []),
+        pending_files=stashed,
         forward_info=forward_info,
     )
+    state.persist_pending()
     kb = _folder_keyboard(token, state.config.categories)
     await send("Choose a folder:", reply_markup=kb)
     return token
@@ -824,6 +888,7 @@ def make_handlers(state: BotState):
         if pending is None:
             await query.answer("Expired — please resend.", show_alert=True)
             return
+        state.persist_pending()
         try:
             chosen = state.config.categories[int(idx_s)]
         except (ValueError, IndexError):
@@ -846,6 +911,8 @@ def make_handlers(state: BotState):
         except Exception as e:
             log.exception("Folder choice processing failed")
             await query.edit_message_text(f"Error: {e}")
+        finally:
+            state._drop_pending_files(token)
 
     async def on_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not _is_authorized(state, update):
@@ -1174,10 +1241,12 @@ def main() -> None:
     log_path = Path(os.environ.get("LOG_FILE", DEFAULT_LOG_PATH)).expanduser()
     _attach_file_logging(log_path)
     log.info("Logging to file: %s", log_path)
-    state = BotState(config)
+    state_dir = Path(os.environ.get("ENGRAM_STATE_DIR", DEFAULT_STATE_DIR)).expanduser()
+    state = BotState(config, state_dir=state_dir)
     state.refresh_vault()
 
     app = Application.builder().token(config.telegram_token).build()
+    state.load_pending(app.bot)
     (
         on_message, on_start, on_refresh, on_redo, on_folder_choice,
         on_search, on_ask, on_undo, on_edit,
