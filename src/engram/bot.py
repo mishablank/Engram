@@ -1275,7 +1275,14 @@ def make_handlers(state: BotState):
         )
 
         merges = 0
-        if state._semantic_index.enabled:
+        merge_skipped = not state._semantic_index.enabled
+        if merge_skipped:
+            await update.effective_chat.send_message(
+                "⚠️ Skipping the duplicate-merge phase: no OPENAI_API_KEY, so "
+                "semantic similarity is unavailable. Only entity pages will be "
+                "rebuilt. Add an embedding key to enable merging."
+            )
+        else:
             await asyncio.to_thread(state._semantic_index.refresh)
             note_paths = _vault_note_paths(base_dir)
             merges = await asyncio.to_thread(
@@ -1297,10 +1304,15 @@ def make_handlers(state: BotState):
             gitsafe.snapshot, base_dir, "engram: post-rebuild"
         )
         snap = "snapshot saved" if committed else "no snapshot (git unavailable or clean)"
+        merge_line = (
+            "merge phase SKIPPED (no embedding key)"
+            if merge_skipped
+            else f"merged {merges} duplicate note(s)"
+        )
         await update.effective_chat.send_message(
-            f"Rebuild done. Merged {merges} duplicate note(s); "
-            f"wrote {entity_pages} entity page(s). Pre-rebuild {snap}; "
-            "revert with `git -C <vault> reset --hard HEAD~` if it looks wrong."
+            f"Rebuild done. {merge_line}; wrote {entity_pages} entity page(s). "
+            f"Pre-rebuild {snap}; revert with "
+            "`git -C <vault> reset --hard HEAD~` if it looks wrong."
         )
 
     return (

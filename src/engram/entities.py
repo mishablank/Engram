@@ -228,10 +228,14 @@ def rebuild_entity_pages(
     base_dir: Path,
     client: Anthropic,
     notes: list[tuple[str, str]],
+    *,
+    min_mentions: int = 2,
 ) -> int:
     """Extract entities across all notes and rebuild typed pages from scratch.
 
-    `notes` is a list of (title, body). Returns the number of entity pages written.
+    `notes` is a list of (title, body). Only entities mentioned in at least
+    `min_mentions` distinct notes get a page — singletons are noise for a wiki
+    backbone, not structure. Returns the number of entity pages written.
     """
     # group_key -> (display_name, type, [(observation, source_title)])
     groups: "OrderedDict[tuple[str, str], tuple[str, str, list[tuple[str, str]]]]" = OrderedDict()
@@ -252,6 +256,9 @@ def rebuild_entity_pages(
 
     count = 0
     for name, etype, obs in groups.values():
+        distinct_sources = {src for _, src in obs if src}
+        if len(distinct_sources) < min_mentions:
+            continue  # singleton (or below threshold) → skip
         lead = _synthesize_lead(client, name, [o for o, _ in obs])
         path = base_dir / ENTITY_TYPE_FOLDERS[etype] / f"{_safe_name(name)}.md"
         path.parent.mkdir(parents=True, exist_ok=True)

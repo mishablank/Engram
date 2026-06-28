@@ -131,6 +131,19 @@ def test_ignores_attachments_and_dotfolders(tmp_path: Path) -> None:
     assert paths == ["alpha.md"]
 
 
+def test_ignores_entity_folders(tmp_path: Path) -> None:
+    # Entity (wiki) pages are synthetic; they must never be index candidates,
+    # or capture notes would dedup-match their own generated entity pages.
+    _write(tmp_path / "AI" / "alpha.md", "alpha\n")
+    _write(tmp_path / "People" / "Someone.md", "alpha person page\n")
+    _write(tmp_path / "Concepts" / "Thing.md", "alpha concept page\n")
+    _write(tmp_path / "Projects" / "Proj.md", "alpha project page\n")
+    emb = StubEmbedder()
+    idx = SemanticIndex(tmp_path, emb)
+    idx.refresh()
+    assert [p.name for p in idx._paths] == ["alpha.md"]
+
+
 def test_hybrid_search_falls_back_to_bm25_when_no_semantic(tmp_path: Path) -> None:
     from engram.embeddings import hybrid_search
 

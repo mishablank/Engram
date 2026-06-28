@@ -60,12 +60,12 @@ async def test_rebuild_builds_entity_pages(tmp_path, monkeypatch):
     ai.mkdir()
     (ai / "a.md").write_text("---\nc: x\n---\n# a\nabout karpathy\n", encoding="utf-8")
     (ai / "b.md").write_text("---\nc: y\n---\n# b\nnothing notable\n", encoding="utf-8")
-    # extract(a) -> Karpathy; extract(b) -> []; then one synth lead.
+    # Karpathy appears in both notes so it clears the min_mentions=2 default.
     _set_sequence(
         state,
         [
             '[{"name":"Andrej Karpathy","type":"person","observation":"works on AI"}]',
-            "[]",
+            '[{"name":"Andrej Karpathy","type":"person","observation":"more AI work"}]',
             "Andrej Karpathy is an AI researcher.",
         ],
     )

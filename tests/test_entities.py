@@ -87,26 +87,37 @@ def test_upsert_is_idempotent_for_same_source(tmp_path: Path) -> None:
     assert text.count("- same obs ([[Note A]])") == 1
 
 
-def test_rebuild_groups_entities_and_writes_pages(tmp_path: Path) -> None:
-    # 2 extraction calls (one per note), then synthesis calls per unique entity.
+def test_rebuild_groups_multi_mention_and_skips_singletons(tmp_path: Path) -> None:
+    # Karpathy appears in 2 notes (kept); RAG in 1 note (singleton, skipped by default).
     client = _client_seq(
         [
             '[{"name":"Karpathy","type":"person","observation":"obs from note 1"}]',
             '[{"name":"karpathy","type":"person","observation":"obs from note 2"},'
             '{"name":"RAG","type":"concept","observation":"retrieval"}]',
-            "Andrej Karpathy is an AI researcher.",  # synth lead for person
-            "RAG combines retrieval and generation.",  # synth lead for concept
+            "Andrej Karpathy is an AI researcher.",  # synth lead for the kept entity
         ]
     )
     notes = [("Note 1", "body one"), ("Note 2", "body two")]
 
     count = rebuild_entity_pages(tmp_path, client, notes)
 
-    assert count == 2  # Karpathy (merged) + RAG
+    assert count == 1  # only Karpathy (2 distinct notes); RAG dropped
     person = (tmp_path / "People" / "Karpathy.md").read_text(encoding="utf-8")
     assert "obs from note 1 ([[Note 1]])" in person
     assert "obs from note 2 ([[Note 2]])" in person  # case-insensitive merge
     assert "Andrej Karpathy is an AI researcher." in person
+    assert not (tmp_path / "Concepts" / "RAG.md").exists()
+
+
+def test_rebuild_min_mentions_one_keeps_singletons(tmp_path: Path) -> None:
+    client = _client_seq(
+        [
+            '[{"name":"RAG","type":"concept","observation":"retrieval"}]',
+            "RAG combines retrieval and generation.",
+        ]
+    )
+    count = rebuild_entity_pages(tmp_path, client, [("Note", "b")], min_mentions=1)
+    assert count == 1
     assert (tmp_path / "Concepts" / "RAG.md").exists()
 
 
@@ -118,7 +129,7 @@ def test_rebuild_clears_stale_pages(tmp_path: Path) -> None:
         ['[{"name":"New","type":"person","observation":"o"}]', "New is a person."]
     )
 
-    rebuild_entity_pages(tmp_path, client, [("N", "b")])
+    rebuild_entity_pages(tmp_path, client, [("N", "b")], min_mentions=1)
 
     assert not stale.exists()
     assert (tmp_path / "People" / "New.md").exists()

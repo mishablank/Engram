@@ -9,7 +9,7 @@ from typing import Iterable, Protocol
 
 import numpy as np
 
-from .config import EMBEDDING_DIM, EMBEDDING_MODEL
+from .config import EMBEDDING_DIM, EMBEDDING_MODEL, ENTITY_TYPE_FOLDERS
 from .vault import (
     FRONTMATTER_RE,
     SNIPPET_WINDOW,
@@ -24,7 +24,9 @@ log = logging.getLogger(__name__)
 DB_RELATIVE_PATH = Path(".tg-obsidian-bot") / "embeddings.db"
 EMBED_BATCH_SIZE = 64
 SURFACE_MAX_CHARS = 2000
-IGNORE_DIRS = ("attachments",)
+# Entity (wiki) folders are synthetic, derived pages — never dedup/relink/retrieval
+# candidates, or capture notes would match their own generated entity pages.
+IGNORE_DIRS = ("attachments", *ENTITY_TYPE_FOLDERS.values())
 
 
 class Embedder(Protocol):
