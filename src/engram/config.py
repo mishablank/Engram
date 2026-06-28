@@ -20,8 +20,17 @@ DEFAULT_CATEGORY = "Other"
 SUMMARY_MODEL = "claude-sonnet-4-6"
 REDO_MODEL = "claude-opus-4-7"
 VISION_MODEL = "claude-haiku-4-5"
+MERGE_MODEL = "claude-sonnet-4-6"
+ENTITY_MODEL = "claude-sonnet-4-6"
 EMBEDDING_MODEL = "text-embedding-3-small"
 EMBEDDING_DIM = 1536
+
+# Entity (wiki backbone) pages live in typed top-level folders.
+ENTITY_TYPE_FOLDERS: dict[str, str] = {
+    "person": "People",
+    "concept": "Concepts",
+    "project": "Projects",
+}
 
 
 @dataclass

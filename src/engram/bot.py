@@ -24,17 +24,24 @@ from telegram.ext import (
     filters,
 )
 
-from . import pending_store
-from .config import DEFAULT_CATEGORY, Config, load_config
+from . import gitsafe, pending_store
+from .config import DEFAULT_CATEGORY, ENTITY_TYPE_FOLDERS, Config, load_config
 from .dedupe import find_semantic_duplicate
 from .embeddings import OpenAIEmbedder, SemanticIndex, hybrid_search
+from .entities import extract_entities, rebuild_entity_pages, upsert_entity_page
 from .fetcher import fetch_urls
 from .inbox import clear_pending, find_pending, move_note, preview
 from .linker import answer_from_vault, enrich_note
-from .note_writer import CapturedMessage, append_to_note, extract_urls, write_note
+from .note_writer import (
+    CapturedMessage,
+    append_to_note,
+    extract_urls,
+    merge_into_note,
+    write_note,
+)
 from .pdf import extract_pdf_text
 from .relinker import relink_note
-from .vault import VaultIndex, scan_vault, search_vault
+from .vault import VaultIndex, load_note_body, scan_vault, search_vault
 from .vision import ocr_image
 from .whisper import transcribe
 
@@ -441,8 +448,20 @@ async def _process_messages(
             original_message_id=fwd_msg_id,
             review_pending=review_pending,
         )
-        path = append_to_note(duplicate, captured)
-        return path, f"{path.parent.name} (appended)"
+        # Karpathy-wiki merge: rewrite the canonical note to integrate the new
+        # source instead of appending a dated block. Snapshot first so a bad
+        # rewrite is one `git revert` away; merge_into_note falls back to a safe
+        # append if the LLM rewrite would drop frontmatter or an attachment.
+        gitsafe.snapshot(
+            state.config.base_dir, f"engram: pre-merge {duplicate.stem}"
+        )
+        path, merged = await asyncio.to_thread(
+            merge_into_note, duplicate, captured, state.anthropic
+        )
+        state.invalidate_vault_cache()
+        await asyncio.to_thread(_update_entities, state, path.stem, body_text)
+        verb = "merged" if merged else "appended"
+        return path, f"{path.parent.name} ({verb})"
 
     target_dir = state.config.base_dir / folder
     attachments_dir = target_dir / "attachments"
@@ -467,7 +486,22 @@ async def _process_messages(
     )
     path = write_note(captured, target_dir, related=related, tags=tags)
     state.invalidate_vault_cache()
+    await asyncio.to_thread(_update_entities, state, path.stem, body_text)
     return path, folder
+
+
+def _update_entities(state: BotState, source_title: str, body: str) -> None:
+    """Extract entities from a captured note and grow their typed wiki pages.
+
+    Best-effort: never raises into the capture path.
+    """
+    if not body.strip():
+        return
+    try:
+        for ent in extract_entities(state.anthropic, source_title, body):
+            upsert_entity_page(state.config.base_dir, ent, source_title)
+    except Exception:
+        log.exception("Entity update failed for %s", source_title)
 
 
 def _move_pending_files(srcs: list[Path], target_dir: Path) -> list[str]:
@@ -1228,12 +1262,65 @@ def make_handlers(state: BotState):
             f"Done. Updated {changed_count}/{len(notes)} note(s)."
         )
 
+    async def on_rebuild(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not _is_authorized(state, update):
+            return
+        base_dir = state.config.base_dir
+        await update.effective_chat.send_message(
+            "Rebuilding vault: snapshotting to git, merging duplicates, "
+            "rebuilding entity pages… this may take a minute."
+        )
+        committed = await asyncio.to_thread(
+            gitsafe.snapshot, base_dir, "engram: pre-rebuild snapshot"
+        )
+
+        merges = 0
+        if state._semantic_index.enabled:
+            await asyncio.to_thread(state._semantic_index.refresh)
+            note_paths = _vault_note_paths(base_dir)
+            merges = await asyncio.to_thread(
+                merge_duplicate_notes,
+                base_dir,
+                state._semantic_index,
+                state.anthropic,
+                note_paths,
+            )
+
+        notes = [
+            (p.stem, load_note_body(p)) for p in _vault_note_paths(base_dir)
+        ]
+        entity_pages = await asyncio.to_thread(
+            rebuild_entity_pages, base_dir, state.anthropic, notes
+        )
+        state.invalidate_vault_cache()
+        await asyncio.to_thread(
+            gitsafe.snapshot, base_dir, "engram: post-rebuild"
+        )
+        snap = "snapshot saved" if committed else "no snapshot (git unavailable or clean)"
+        await update.effective_chat.send_message(
+            f"Rebuild done. Merged {merges} duplicate note(s); "
+            f"wrote {entity_pages} entity page(s). Pre-rebuild {snap}; "
+            "revert with `git -C <vault> reset --hard HEAD~` if it looks wrong."
+        )
+
     return (
         on_message, on_start, on_refresh, on_redo, on_folder_choice,
         on_search, on_ask, on_undo, on_edit,
         on_inbox, on_review, on_review_choice,
-        on_relink,
+        on_relink, on_rebuild,
     )
+
+
+def _vault_note_paths(base_dir: Path) -> list[Path]:
+    """All capture notes, excluding attachments and the entity (wiki) folders."""
+    skip = {"attachments", *ENTITY_TYPE_FOLDERS.values()}
+    out: list[Path] = []
+    for p in base_dir.rglob("*.md"):
+        if any(part in skip for part in p.relative_to(base_dir).parts):
+            continue
+        out.append(p)
+    # Deterministic order so rebuilds and their git diffs are reproducible.
+    return sorted(out)
 
 
 def main() -> None:
@@ -1251,7 +1338,7 @@ def main() -> None:
         on_message, on_start, on_refresh, on_redo, on_folder_choice,
         on_search, on_ask, on_undo, on_edit,
         on_inbox, on_review, on_review_choice,
-        on_relink,
+        on_relink, on_rebuild,
     ) = make_handlers(state)
 
     app.add_handler(CommandHandler("start", on_start))
@@ -1264,6 +1351,7 @@ def main() -> None:
     app.add_handler(CommandHandler("inbox", on_inbox))
     app.add_handler(CommandHandler("review", on_review))
     app.add_handler(CommandHandler("relink", on_relink))
+    app.add_handler(CommandHandler("rebuild", on_rebuild))
     app.add_handler(CallbackQueryHandler(on_folder_choice, pattern=r"^f\|"))
     app.add_handler(CallbackQueryHandler(on_review_choice, pattern=r"^r\|"))
     app.add_handler(
