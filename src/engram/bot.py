@@ -41,6 +41,7 @@ from .note_writer import (
 )
 from .pdf import extract_pdf_text
 from .relinker import relink_note
+from .retro import merge_duplicate_notes
 from .vault import VaultIndex, load_note_body, scan_vault, search_vault
 from .vision import ocr_image
 from .whisper import transcribe

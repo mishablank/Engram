@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from engram import bot as bot_module
+from engram import retro as retro_module
 from engram.vault import VaultIndex
 from tests.test_bot import (
     _fake_callback_update,
@@ -79,3 +80,27 @@ async def test_rebuild_builds_entity_pages(tmp_path, monkeypatch):
     assert "works on AI ([[a]])" in page.read_text(encoding="utf-8")
     last = update.effective_chat.send_message.call_args.args[0]
     assert "Rebuild done" in last
+
+
+async def test_rebuild_runs_merge_branch_when_index_enabled(tmp_path, monkeypatch):
+    # Regression: on_rebuild must reach merge_duplicate_notes without a NameError
+    # when the semantic index is enabled. (The other rebuild test disables the
+    # index, so it never exercised the merge import.)
+    state = _make_state(tmp_path, monkeypatch)
+    stub = SimpleNamespace(dim=8, embed=lambda texts: [[1.0] * 8 for _ in texts])
+    state._semantic_index.embedder = stub  # enable merge branch
+    monkeypatch.setattr(state._semantic_index, "refresh", lambda: None)
+    # No duplicates found → no merge rewrites, no anthropic merge calls.
+    monkeypatch.setattr(retro_module, "find_semantic_duplicate", lambda *a, **k: None)
+    ai = tmp_path / "AI"
+    ai.mkdir()
+    (ai / "a.md").write_text("---\nc: x\n---\n# a\nbody\n", encoding="utf-8")
+    _set_text(state, "not json")  # entity extraction yields nothing
+
+    on_rebuild = bot_module.make_handlers(state)[13]
+    update = _fake_update(_fake_message(text="/rebuild"))
+    await on_rebuild(update, SimpleNamespace())
+
+    last = update.effective_chat.send_message.call_args.args[0]
+    assert "Rebuild done" in last
+    assert "merged 0" in last.lower()  # merge phase ran (not skipped)
