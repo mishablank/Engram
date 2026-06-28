@@ -20,8 +20,10 @@ Built as a personal second-brain pipeline; published in case it's useful to anyo
 - **Capture anything** — text, URLs, photos, voice notes, PDFs, Word docs (`.docx`/`.doc`), plain-text/code files, forwarded posts, YouTube links. Media groups (multi-photo posts) are debounced and stitched into a single note.
 - **Read the contents, not just the message** — Claude vision OCR for photos, OpenAI Whisper for voice, PyPDF/python-docx for documents, YouTube Transcript API for videos, plain HTTP fetcher for web pages.
 - **AI routing** — Claude (Sonnet) picks a folder, writes a title, summarises the body, generates tags, and proposes up to 5 related notes from your existing vault. Falls back to an "Other" bucket and an inbox queue when confidence is low.
-- **Smart dedupe** — incoming notes that match by URL, title, or semantic similarity (cosine on OpenAI embeddings) get *appended* to the existing note instead of creating a duplicate.
+- **Merge-and-rewrite dedupe** — incoming notes that match by URL, title, or semantic similarity (cosine on OpenAI embeddings) are **merged into the canonical note**: Claude rewrites the page to integrate the new source, collapse redundancy, and reconcile contradictions inline (instead of stacking dated append blocks). The vault is git-snapshotted before every rewrite; if a rewrite would drop the frontmatter or an attachment it safely falls back to a plain append, so a capture is never lost.
+- **Entity (wiki) pages** — every capture also grows typed backbone pages under `People/`, `Concepts/`, and `Projects/`. Each entity page accumulates one grounded observation per source note plus `[[backlinks]]`, turning the chronological capture stream into a navigable wiki.
 - **Vault-grounded Q&A** — `/ask` runs a hybrid keyword + embedding retrieval over your notes and answers with Claude, with multi-turn follow-ups via Telegram reply threads.
+- **Retroactive rebuild** — `/rebuild` git-snapshots the vault, merges existing duplicate notes, and rebuilds all entity pages from scratch. One command turns an existing note pile into the wiki.
 - **Manual override** — every capture shows an inline-keyboard folder picker; misroutes are one tap away. `/redo`, `/edit`, `/undo`, and `/relink` cover the rest.
 - **Single-tenant by design** — an `ALLOWED_USER_IDS` allowlist gates every handler. Nobody else who finds your bot can use it.
 
@@ -37,9 +39,14 @@ Telegram message
      ↓
 Claude enrichment: title · summary · tags · folder · related notes · confidence
      ↓
-Dedupe check (URL → title → semantic) → append to existing OR create new
+Dedupe check (URL → title → semantic)
+     ├─ match    → git snapshot → Claude merge-rewrites the canonical note
+     └─ no match → create new note
+     ↓
+Entity pass: extract people/concepts/projects → grow typed wiki pages
      ↓
 <vault>/<Category>/<Title>.md   with YAML frontmatter + [[backlinks]] + attachments/
+<vault>/{People,Concepts,Projects}/<Entity>.md   accumulating observations + backlinks
 ```
 
 ## Requirements
@@ -109,10 +116,22 @@ All config is via environment variables (loaded from `.env` if present). See [.e
 | `/inbox` | List notes flagged for review (low-confidence routing) |
 | `/review` | Walk pending notes one at a time with move / mark-reviewed / delete buttons |
 | `/relink [folder]` | Refresh related-note backlinks. No arg = last capture; with arg = entire folder |
+| `/rebuild` | Git-snapshot the vault, merge existing duplicate notes, and rebuild all `People`/`Concepts`/`Projects` entity pages from scratch. Destructive but reversible (see below) |
 | `/redo` | Reply with `/redo` to regenerate a capture using the higher-quality Opus model |
 | `/edit <text>` | Replace the source of the last capture and re-enrich |
 | `/undo` | Delete the last capture in this chat |
 | `/refresh` | Rescan the vault index (also runs automatically every 10 minutes) |
+
+### Rolling back a merge or rebuild
+
+Every merge and every `/rebuild` commits the vault to a git repo (auto-initialised at `BASE_DIR` on first use) **before** writing. To undo the most recent rewrite:
+
+```bash
+git -C "$BASE_DIR" log --oneline      # find the engram: pre-* commit
+git -C "$BASE_DIR" reset --hard HEAD~ # discard the last rewrite
+```
+
+> **iCloud note:** if your vault lives in an iCloud-synced folder, the `.git` directory is synced too. This works fine but can cause occasional sync churn; that is the documented trade-off for in-vault rollback.
 
 The plain message path: send a message → tap a folder button → done. Send a photo without a caption and the bot OCRs it first so it can route by content.
 
@@ -157,11 +176,12 @@ uv sync
 uv run pytest -v
 ```
 
-15 test modules cover the bot handlers, vault indexing, embeddings, dedupe, link enrichment, vision/whisper/youtube/pdf adapters, and the inbox/review flow. `pytest-asyncio` is in `auto` mode. CI runs on push and PR against Python 3.11 / 3.12 / 3.13.
+The test suite covers the bot handlers, vault indexing, embeddings, dedupe, link enrichment, the merge-and-rewrite path, entity extraction/pages, the retroactive `/rebuild` flow, git snapshotting, vision/whisper/youtube/pdf adapters, and the inbox/review flow. `pytest-asyncio` is in `auto` mode. CI runs on push and PR against Python 3.11 / 3.12 / 3.13.
 
 ## Roadmap
 
 - **Local-model support** — swap Claude / OpenAI for Ollama or llama.cpp so the bot can run end-to-end without paid API keys. Embeddings first (cheapest win), then enrichment. Tracked in [#1](https://github.com/mishablank/Engram/issues/1) — help welcome.
+- **Scheduled maintenance** — a nightly pass that re-synthesises entity leads, reconciles contradictions across notes, and DMs a digest of what changed in the vault overnight.
 
 ## Security model
 

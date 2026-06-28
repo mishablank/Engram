@@ -1,13 +1,23 @@
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from anthropic import Anthropic
+
+from .merger import merge_note
+from .vault import FRONTMATTER_RE
+
+log = logging.getLogger(__name__)
+
 URL_RE = re.compile(r"https?://\S+")
 SLUG_BAD_CHARS = re.compile(r'[\\/:*?"<>|#\[\]]')
 WHITESPACE = re.compile(r"\s+")
+EMBED_RE = re.compile(r"!\[\[[^\]]+\]\]")
+RELATED_BLOCK_RE = re.compile(r"\n---\n\*Related: .*?\*[ \t]*\n", re.DOTALL)
 
 
 @dataclass
@@ -167,3 +177,65 @@ def append_to_note(path: Path, msg: CapturedMessage) -> Path:
     new_text = existing + "\n" + build_update_section(msg)
     path.write_text(new_text, encoding="utf-8")
     return path
+
+
+def _embeds(text: str) -> set[str]:
+    return set(EMBED_RE.findall(text))
+
+
+def is_safe_merge(existing: str, merged: str) -> bool:
+    """The LLM rewrite must not drop frontmatter or any attachment embed."""
+    if not merged.strip():
+        return False
+    if FRONTMATTER_RE.match(existing) and not FRONTMATTER_RE.match(merged):
+        return False
+    if not _embeds(existing).issubset(_embeds(merged)):
+        return False
+    return True
+
+
+def _insert_before_related(text: str, block: str) -> str:
+    """Insert `block` ahead of a trailing `*Related: ...*` section, else at the end."""
+    m = RELATED_BLOCK_RE.search(text)
+    if m is not None:
+        return text[: m.start()] + "\n" + block.rstrip() + "\n" + text[m.start():]
+    return text.rstrip() + "\n" + block.rstrip() + "\n"
+
+
+def _new_media_block(merged: str, msg: CapturedMessage) -> str:
+    lines: list[str] = []
+    for url in msg.source_urls:
+        if url and url not in merged:
+            lines.append(f"> Source: {url}")
+    for embed in [*msg.images, *msg.attachments]:
+        token = f"![[{embed}]]"
+        if token not in merged:
+            lines.append(token)
+    return "\n".join(lines)
+
+
+def merge_into_note(
+    path: Path, msg: CapturedMessage, client: Anthropic
+) -> tuple[Path, bool]:
+    """Rewrite an existing note to integrate `msg`, the Karpathy-wiki way.
+
+    Returns (path, merged). When the LLM rewrite is unsafe (dropped frontmatter or
+    an attachment), falls back to the mechanical append so a capture is never lost,
+    and returns merged=False.
+    """
+    existing = path.read_text(encoding="utf-8")
+    merged = merge_note(
+        client,
+        existing,
+        msg.text or "",
+        new_source_date=msg.created.strftime("%Y-%m-%d"),
+    )
+    if not is_safe_merge(existing, merged):
+        log.info("Merge unsafe for %s; falling back to append", path.name)
+        append_to_note(path, msg)
+        return path, False
+    block = _new_media_block(merged, msg)
+    if block:
+        merged = _insert_before_related(merged, block)
+    path.write_text(merged.rstrip() + "\n", encoding="utf-8")
+    return path, True
